@@ -1,8 +1,15 @@
 import os
 import hashlib
 import argparse
+import base64
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
+
 
 CAMELLIA_BLOCK_SIZE = 16  # Camellia block size is in multiples of 16
 SALT_SIZE = 8  # WolfSSL salt size is 8 bytes
@@ -141,6 +148,14 @@ class CamelliaEncrypt:
         return self.encoding
 
     # main functions
+    def symmetric_key_gen(self):
+        """
+        The symmetric_key_gen method generates a one time symmetric key that is 32 bytes(256 bits) long
+        :return: Returns symmetric key
+        """
+        symmetric_key = os.urandom(32)
+        return symmetric_key
+
     # Need to validate that the key size they are putting in is indeed 32 bytes(256 bit) long
     def check_key_size(self):
         """
@@ -220,8 +235,8 @@ class CamelliaEncrypt:
         :return: Return the key, keylength, message, and message length
         """
         try:
-            b_key = bytes(self.key, self.encoding)
-            key_length = len(self.key.encode(self.encoding))
+            b_key = self.key
+            key_length = len(self.key)
             b_message = bytes(self.message, self.encoding)
             message_length = len(self.message.encode(self.encoding)) + 1
             return b_key, key_length, b_message, message_length
@@ -236,34 +251,45 @@ class CamelliaEncrypt:
 
     def camellia_encrypt(self):
         if self.file_to_write == False:
-            print("Encrypting message please handle message on your own!")
+            print("PREPARING SESSION! PLEASE HANDLE OUTPUT ON YOUR OWN")
             iv = self.iv_gen()
             salt = self.salt_gen()
             b_key, key_length, b_message, message_length = self.byte_convert()
             padded_message = self.pad_message(message_length, b_message)
             new_key = self.new_key(b_key, salt)
             cipher_text = self.cipher_text_gen(padded_message, new_key, iv)
+            print("The symmetric key is: ", b_key)
             print("The cipher text is: ", cipher_text)
             print("The length of the cipher text is: ", len(cipher_text))
             print("The iv is: ", iv)
             print("The salt is: ", salt)
             print("The length of the original message is: ", message_length)
+            # Encrypt the key using the public that has been shared
+            with open("shared_public_key.pem", "rb") as key_file:
+                public_key = serialization.load_pem_public_key(key_file.read(), backend=default_backend())
+            encrypted_symmetric_key = base64.b64encode(public_key.encrypt(b_key,
+                                                            padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                                                                         algorithm=hashes.SHA256(), label=None)))
+            print("The encrypted symmetric key is: ", encrypted_symmetric_key)
+
+            ##################
             return cipher_text
         else:
-            abs_filepath = os.path.dirname(os.path.abspath(__file__))+'\\Output\\'
-            print("Encrypting and writing to file!")
-            print("Writing file to: ", abs_filepath)
-            with open(abs_filepath + self.file_to_write, "wb") as encrypted_file:
+            # abs_filepath = os.path.dirname(os.path.abspath(__file__))
+            print("PREPARING SESSION! ENCRYPTING TO A FILE. PLEASE HANDLE OUTPUT ON YOUR OWN")
+            # print("Writing file to: ", abs_filepath)
+            with open(r'C:\Users\black\Desktop\UL\Crypto\CryptoLibs\Python\CamelliaEncrypt\SecretMessage.txt' , "wb") as encrypted_file:
                 iv = self.iv_gen()
                 salt = self.salt_gen()
                 b_key, key_length, b_message, message_length = self.byte_convert()
                 padded_message = self.pad_message(message_length, b_message)
                 new_key = self.new_key(b_key, salt)
                 cipher_text = self.cipher_text_gen(padded_message, new_key, iv)
-                print("The cipher text is: ", cipher_text)
-                print("The iv is: ", iv)
-                print("The salt is: ", salt)
-                print("The length of the original message is: ", message_length)
+                # print("The cipher text is: ", cipher_text)
+                # print("The length of the cipher text is: ", len(cipher_text))
+                # print("The iv is: ", iv)
+                # print("The salt is: ", salt)
+                # print("The length of the original message is: ", message_length)
                 encrypted_file.write(cipher_text)
             encrypted_file.close()
 
@@ -271,8 +297,9 @@ class CamelliaEncrypt:
 if __name__ == '__main__':
     # parse args
 
-    # # write to buffer example
-    key = "SzE6pcNdUGbF0nVTNjqDj79v8JwBf7P2"
+    # # WRITE TO BUFFER EXAMPLE
+    # key = "SzE6pcNdUGbF0nVTNjqDj79v8JwBf7P2"
+    key = os.urandom(32)
     message = "Hello there, you decrypted the string"
     encoding = 'utf-8'
     message_length = len(message)
@@ -280,8 +307,9 @@ if __name__ == '__main__':
     # Args:  message, message_size, key, key_size, file_to_write,  encoding
     cam_t = CamelliaEncrypt(message, message_length, key, key_len, False, 'utf-8')
     cam_t.camellia_encrypt()
-    # write to file example
-    key = "SzE6pcNdUGbF0nVTNjqDj79v8JwBf7P2"
+    # # WRITE TO FILE EXAMPLE
+    # key = "SzE6pcNdUGbF0nVTNjqDj79v8JwBf7P2"
+    key = os.urandom(32)
     message = "Hello there, you decrypted the string"
     encoding = 'utf-8'
     message_length = len(message)
